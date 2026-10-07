@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title>GO!</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <style>
+    /* Temně fialovo-černý gradient z vaší předlohy */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: radial-gradient(circle at center, #2e1035 0%, #050206 100%);
+      color: #fff;
+      text-align: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Neviditelné tlačítko přes 100% displeje pro iPhone i iPad */
+    .fullscreen-trigger {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      z-index: 100;
+    }
+
+    /* OPRAVA RESPONZIVITY: Velikost se počítá dynamicky z šířky displeje (25vw) */
+    /* Vypadá obří a skvěle jak na malém iPhonu, tak na velkém iPadu */
+    .go-logo {
+      font-family: "Comic Sans MS", "Marker Felt", sans-serif;
+      font-size: 25vw; 
+      font-weight: bold;
+      color: #39ff14;
+      text-shadow: 0 0 15px rgba(57, 255, 20, 0.6), 0 0 30px rgba(57, 255, 20, 0.4);
+      user-select: none;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+
+    /* Omezení maximální velikosti pro extrémně obří iPady, aby text nepřetekl */
+    @media (min-width: 768px) {
+      .go-logo {
+        font-size: 18vw;
+      }
+    }
+
+    /* Pulzování neonu při nahrávání audia */
+    .listening .go-logo {
+      animation: neonPulse 1.5s infinite ease-in-out;
+    }
+
+    @keyframes neonPulse {
+      0% { transform: scale(1); opacity: 1; text-shadow: 0 0 15px rgba(57, 255, 20, 0.6), 0 0 30px rgba(57, 255, 20, 0.4); }
+      50% { transform: scale(1.05); opacity: 0.8; text-shadow: 0 0 25px rgba(57, 255, 20, 0.9), 0 0 50px rgba(57, 255, 20, 0.6); }
+      100% { transform: scale(1); opacity: 1; text-shadow: 0 0 15px rgba(57, 255, 20, 0.6), 0 0 30px rgba(57, 255, 20, 0.4); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Neonový nápis GO! z obrázku -->
+  <div id="go-text" class="go-logo">GO!</div>
+
+  <!-- Univerzální bezdotykový spouštěč mikrofonu -->
+  <button id="goButton" class="fullscreen-trigger" onclick="spustitNahrávání()"></button>
+
+  <script>
+    const goText = document.getElementById('go-text');
+    let mediaRecorder;
+    let audioChunks = [];
+
+    function spustitNahrávání() {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          document.body.classList.add('listening');
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+
+          mediaRecorder.ondataavailable = event => {
+            audioChunks.push(event.data);
+          };
+
+          mediaRecorder.onstop = () => {
+            document.body.classList.remove('listening');
+            const audioBlob = new Blob(audioChunks, { type: 'audio/m4a' });
+            
+            // !!! ŘÁDEK 84: TADY DO TĚCH UVOZOVEK NAKOPÍRUJTE CELOU SVOJI URL ADRESU GOOGLE SCRIPTU (/exec) !!!
+            const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgBPt25SQMyJNl8BivMQvuuUZJQRS_R5k19kF9FHtrKv20hxTSU0jQ2uvOp-LfVf-sTA/exec";
+
+            fetch(GOOGLE_SCRIPT_URL, {
+              method: "POST",
+              body: audioBlob
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data.odpoved) {
+                const u = new SpeechSynthesisUtterance(data.odpoved);
+                if (data.typ === "hardware" && data.akce === "maps") {
+                  u.onend = () => { window.top.location.href = "maps://?q=" + encodeURIComponent(data.hodnota); };
+                }
+                window.speechSynthesis.speak(u);
+              }
+            }).catch(() => {});
+          };
+
+          mediaRecorder.start();
+          setTimeout(() => { if(mediaRecorder.state === "recording") mediaRecorder.stop(); }, 6000);
+        }).catch(() => {});
+    }
+  </script>
+</body>
+</html>
