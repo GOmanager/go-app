@@ -3,12 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>GO!</title>
-  
-  <!-- NASTAVENÍ PRO APPLE WEB APP (Klíč k odblokování bezdotykového mikrofonu) -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -24,7 +19,6 @@
       overflow: hidden;
       position: relative;
     }
-    .fullscreen-trigger { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: transparent; border: none; cursor: pointer; z-index: 100; }
     .go-logo { font-family: "Comic Sans MS", "Marker Felt", sans-serif; font-size: 25vw; font-weight: bold; color: #39ff14; text-shadow: 0 0 15px rgba(57, 255, 20, 0.6), 0 0 30px rgba(57, 255, 20, 0.4); user-select: none; }
     @media (min-width: 768px) { .go-logo { font-size: 18vw; } }
     .listening .go-logo { animation: neonPulse 1.5s infinite ease-in-out; }
@@ -33,16 +27,16 @@
 </head>
 <body>
 
+  <!-- Čisté vizuální rozhraní s pulzujícím neonem z vašeho obrázku -->
   <div id="go-text" class="go-logo">GO!</div>
-  <button id="goButton" class="fullscreen-trigger" onclick="spustitNahrávání()"></button>
 
   <script>
     let mediaRecorder;
     let audioChunks = [];
 
-    // Tuto funkci volá na dálku Apple Zkratka
-    function spustitNahrávání() {
-      // FORCE AUDIO UNLOCK: Okamžitě v iPhonu otevřeme zvukový kontext, aby Safari povolilo reproduktor bez klikání
+    // TATO FUNKCE SE SPUSTÍ AUTOMATICKY A BEZDOTYKOVĚ IHNED PO OTEVŘENÍ SAFARI
+    function spustitAutomatickyPoslech() {
+      // Okamžitě v Safari odemkneme audio kontext, aby reproduktor mohl bez ptaní hrát hlas z cloudu
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (AudioContext) { const ctx = new AudioContext(); if (ctx.state === 'suspended') ctx.resume(); }
 
@@ -63,14 +57,14 @@
             reader.onloadend = () => {
               const base64AudioData = reader.result.split(',');
 
-              // !!! ŘÁDEK 57: TADY VLOŽTE SVOJI URL ADRESU GOOGLE SCRIPTU (/exec) !!!
+              // !!! ŘÁDEK 51: TADY VLOŽTE SVOJI URL ADRESU GOOGLE SCRIPTU (/exec) !!!
               const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgBPt25SQMyJNl8BivMQvuuUZJQRS_R5k19kF9FHtrKv20hxTSU0jQ2uvOp-LfVf-sTA/exec";
 
               fetch(GOOGLE_SCRIPT_URL, { method: "POST", body: base64AudioData })
               .then(res => res.json())
               .then(data => {
                 if (data && data.audio) {
-                  // PŘÍMÝ HLAS Z CLOUDU: Přečteme hotové MP3 od Gemini
+                  // Přehrajeme hotový audio soubor (hlas Gemini) z cloudu
                   const audioUrl = "data:audio/mp3;base64," + data.audio;
                   const snd = new Audio(audioUrl);
                   
@@ -79,22 +73,26 @@
                       let dynamicUrl = data.akce + encodeURIComponent(data.hodnota);
                       if (data.akce === "tel:") dynamicUrl = data.akce + data.hodnota.replace(/\s+/g, '');
                       window.top.location.href = dynamicUrl;
-                      completion();
                     } else {
-                      // Po domluvení asistent automaticky a bezdotykově poslouchá dál
-                      setTimeout(() => { spustitNahrávání(); }, 300);
+                      // Po domluvení asistent automaticky a plynule poslouchá dál
+                      setTimeout(() => { spustitAutomatickyPoslech(); }, 300);
                     }
                   };
-                  snd.play();
+                  snd.play(); // Safari zvuk bezpečně přehraje, protože audio vrstva byla odemčena při startu
                 }
-              }).catch(() => { completion(); });
+              }).catch(() => {});
             };
           };
 
           mediaRecorder.start();
           setTimeout(() => { if(mediaRecorder.state === "recording") mediaRecorder.stop(); }, 6000);
-        }).catch(() => { completion(); });
+        }).catch(() => {});
     }
+
+    // AUTOMATICKÝ SPOUŠTĚČ: Jakmile se okno Safari objeví na displeji, kód hned bezdotykově urve mikrofon
+    window.onload = () => {
+      setTimeout(() => { spustitAutomatickyPoslech(); }, 400);
+    };
   </script>
 </body>
 </html>
