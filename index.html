@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <title>GO!</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  
+  <!-- NASTAVENÍ PRO APPLE WEB APP (Klíč k odblokování bezdotykového mikrofonu) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -31,54 +36,52 @@
   <div id="go-text" class="go-logo">GO!</div>
   <button id="goButton" class="fullscreen-trigger" onclick="spustitNahrávání()"></button>
 
-    <script>
+  <script>
     let mediaRecorder;
     let audioChunks = [];
 
+    // Tuto funkci volá na dálku Apple Zkratka
     function spustitNahrávání() {
+      // FORCE AUDIO UNLOCK: Okamžitě v iPhonu otevřeme zvukový kontext, aby Safari povolilo reproduktor bez klikání
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) { const ctx = new AudioContext(); if (ctx.state === 'suspended') ctx.resume(); }
+
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
           document.body.classList.add('listening');
-          mediaRecorder = new MediaRecorder(stream);
+          mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
           audioChunks = [];
 
           mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); };
 
           mediaRecorder.onstop = () => {
             document.body.classList.remove('listening');
-            const audioBlob = new Blob(audioChunks, { type: 'audio/m4a' });
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
             
             const reader = new FileReader();
             reader.readAsDataURL(audioBlob);
             reader.onloadend = () => {
               const base64AudioData = reader.result.split(',');
 
-              // !!! TADY VLOŽTE SVOJI URL ADRESU GOOGLE SCRIPTU (/exec) !!!
+              // !!! ŘÁDEK 57: TADY VLOŽTE SVOJI URL ADRESU GOOGLE SCRIPTU (/exec) !!!
               const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgBPt25SQMyJNl8BivMQvuuUZJQRS_R5k19kF9FHtrKv20hxTSU0jQ2uvOp-LfVf-sTA/exec";
 
               fetch(GOOGLE_SCRIPT_URL, { method: "POST", body: base64AudioData })
               .then(res => res.json())
               .then(data => {
                 if (data && data.audio) {
-                  // Přehrajeme hotový audio soubor od Gemini z cloudu
+                  // PŘÍMÝ HLAS Z CLOUDU: Přečteme hotové MP3 od Gemini
                   const audioUrl = "data:audio/mp3;base64," + data.audio;
                   const snd = new Audio(audioUrl);
                   
-                  // Jakmile robot domluví, Safari dynamic odpálí hardware příkaz
                   snd.onended = () => { 
                     if (data.typ === "hardware" && data.akce) {
-                      // UNIVERZÁLNÍ SYSTÉMOVÝ SKOK: Safari samo otevře Mapy, Hovory, Poznámky nebo Kalendář
                       let dynamicUrl = data.akce + encodeURIComponent(data.hodnota);
-                      
-                      // Ošetření pro telefonní hovory (nesmí mít zakódované znaky)
-                      if (data.akce === "tel:") {
-                        dynamicUrl = data.akce + data.hodnota.replace(/\s+/g, '');
-                      }
-
+                      if (data.akce === "tel:") dynamicUrl = data.akce + data.hodnota.replace(/\s+/g, '');
                       window.top.location.href = dynamicUrl;
                       completion();
                     } else {
-                      // Pokud šlo o pouhý pokec, automaticky po domluvení otevře mikrofon znovu!
+                      // Po domluvení asistent automaticky a bezdotykově poslouchá dál
                       setTimeout(() => { spustitNahrávání(); }, 300);
                     }
                   };
