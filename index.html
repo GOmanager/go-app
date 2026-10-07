@@ -31,7 +31,7 @@
   <div id="go-text" class="go-logo">GO!</div>
   <button id="goButton" class="fullscreen-trigger" onclick="spustitNahrávání()"></button>
 
-  <script>
+    <script>
     let mediaRecorder;
     let audioChunks = [];
 
@@ -60,28 +60,37 @@
               .then(res => res.json())
               .then(data => {
                 if (data && data.audio) {
+                  // Přehrajeme hotový audio soubor od Gemini z cloudu
                   const audioUrl = "data:audio/mp3;base64," + data.audio;
                   const snd = new Audio(audioUrl);
                   
-                  // Jakmile robot domluví, vrátíme JSON příkaz zpět do té jedné Apple Zkratky
+                  // Jakmile robot domluví, Safari dynamic odpálí hardware příkaz
                   snd.onended = () => { 
-                    var result = {
-                      "typ": data.typ,
-                      "akce": data.akce,
-                      "hodnota": data.hodnota
-                    };
-                    // Tímto příkazem předáme data zpět do iPhonu do té samé spuštěné Zkratky!
-                    completion(result);
+                    if (data.typ === "hardware" && data.akce) {
+                      // UNIVERZÁLNÍ SYSTÉMOVÝ SKOK: Safari samo otevře Mapy, Hovory, Poznámky nebo Kalendář
+                      let dynamicUrl = data.akce + encodeURIComponent(data.hodnota);
+                      
+                      // Ošetření pro telefonní hovory (nesmí mít zakódované znaky)
+                      if (data.akce === "tel:") {
+                        dynamicUrl = data.akce + data.hodnota.replace(/\s+/g, '');
+                      }
+
+                      window.top.location.href = dynamicUrl;
+                      completion();
+                    } else {
+                      // Pokud šlo o pouhý pokec, automaticky po domluvení otevře mikrofon znovu!
+                      setTimeout(() => { spustitNahrávání(); }, 300);
+                    }
                   };
                   snd.play();
                 }
-              }).catch(() => { completion({"typ":"pokec"}); });
+              }).catch(() => { completion(); });
             };
           };
 
           mediaRecorder.start();
           setTimeout(() => { if(mediaRecorder.state === "recording") mediaRecorder.stop(); }, 6000);
-        }).catch(() => { completion({"typ":"pokec"}); });
+        }).catch(() => { completion(); });
     }
   </script>
 </body>
