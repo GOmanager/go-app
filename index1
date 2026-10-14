@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title>GO!</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="GO!">
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: radial-gradient(circle at center, #2e1035 0%, #050206 100%);
+      color: #fff;
+      text-align: center;
+      overflow: hidden;
+      position: relative;
+    }
+    .start-overlay {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 10;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .go-logo { 
+      font-family: "Comic Sans MS", "Marker Felt", sans-serif; 
+      font-size: 25vw; 
+      font-weight: bold; 
+      color: #39ff14; 
+      text-shadow: 0 0 15px rgba(57, 255, 20, 0.6), 0 0 30px rgba(57, 255, 20, 0.4); 
+      user-select: none; 
+    }
+    @media (min-width: 768px) { .go-logo { font-size: 18vw; } }
+    
+    .listening .go-logo { animation: neonPulse 1.5s infinite ease-in-out; color: #39ff14; }
+    .processing .go-logo { color: #00ffff; text-shadow: 0 0 15px rgba(0, 255, 255, 0.6); }
+
+    @keyframes neonPulse { 
+      0% { transform: scale(1); opacity: 1; } 
+      50% { transform: scale(1.08); opacity: 0.8; } 
+      100% { transform: scale(1); opacity: 1; } 
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Overlay pro první aktivaci, text se dynamicky mění -->
+  <div id="interaction-layer" class="start-overlay">
+    <div id="go-text" class="go-logo">GO!</div>
+  </div>
+
+  <script>
+    let mediaRecorder;
+    let audioChunks = [];
+    let globalStream = null;
+    let audioContext = null;
+    const GOOGLE_SCRIPT_URL = "https://google.com";
+
+    // Funkce, která odemkne audio a spustí poslech
+    async function inicializovatAsistenta() {
+      document.getElementById('interaction-layer').style.pointerEvents = 'none';
+      
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) {
+        audioContext = new AudioContext();
+        if (audioContext.state === 'suspended') await audioContext.resume();
+      }
+
+      try {
+        globalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Zapamatujeme si, že uživatel už asistentovi schválil přístup
+        localStorage.setItem('asistentAktivován', 'true');
+        vysilatAPrijimat();
+      } catch (err) {
+        document.getElementById('go-text').innerText = "POVOLTE MIKROFON";
+        document.getElementById('interaction-layer').style.pointerEvents = 'auto';
+      }
+    }
+
+    // Ruční kliknutí (vyžadováno POUZE při úplně prvním spuštění v životě)
+    document.getElementById('interaction-layer').addEventListener('click', inicializovatAsistenta);
+
+    // AUTOMATICKÝ START: Spustí se hned, jak se PWA otevře
+    window.onload = () => {
+      // Pokud uživatel aplikaci v minulosti aktivoval, spustíme mikrofon ihned bezdotykově
+      if (localStorage.getItem('asistentAktivován') === 'true') {
+        inicializovatAsistenta();
+      } else {
+        // Prvofantomas: Bliká zelené GO! a čeká na jedno jediné úvodní klepnutí
+        document.getElementById('go-text').innerText = "KLIKNI GO!";
+      }
+    };
+
+    function vysilatAPrijimat() {
+      document.body.className = 'listening';
+      audioChunks = [];
+
+      mediaRecorder = new MediaRecorder(globalStream, { mimeType: 'audio/webm;codecs=opus' });
+      
+      mediaRecorder.ondataavailable = event => { 
+        if (event.data.size > 0) audioChunks.push(event.data); 
+      };
+
+      mediaRecorder.onstop = () => {
+        document.body.className = 'processing';
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          const base64AudioData = reader.result.split(',');
+
+          fetch(GOOGLE_SCRIPT_URL, { 
+            method: "POST", 
+            body: JSON.stringify({ audio: base64AudioData })
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.audio) {
+              const audioUrl = "data:audio/mp3;base64," + data.audio;
+              const snd = new Audio(audioUrl);
+              
+              snd.onended = () => { 
+                if (data.typ === "hardware" && data.akce) {
+                  let dynamicUrl = data.akce + encodeURIComponent(data.hodnota);
+                  if (data.akce === "tel:") dynamicUrl = data.akce + data.hodnota.replace(/\s+/g, '');
+                  window.top.location.href = dynamicUrl;
+                } else {
+                  vysilatAPrijimat();
+                }
+              };
+              snd.play().catch(() => { vysilatAPrijimat(); });
+            } else {
+              vysilatAPrijimat();
+            }
+          })
+          .catch(() => {
+            setTimeout(vysilatAPrijimat, 1000);
+          });
+        };
+      };
+
+      mediaRecorder.start();
+      
+      // Nahráváme v 5sekundových blocích (lze upravit)
+      setTimeout(() => { 
+        if(mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.stop(); 
+        }
+      }, 5000);
+    }
+  </script>
+</body>
+</html>
