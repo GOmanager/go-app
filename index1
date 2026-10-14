@@ -65,7 +65,7 @@
     let audioChunks = [];
     let globalStream = null;
     let audioContext = null;
-    const GOOGLE_SCRIPT_URL = "https://google.com";
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgBPt25SQMyJNl8BivMQvuuUZJQRS_R5k19kF9FHtrKv20hxTSU0jQ2uvOp-LfVf-sTA/exec";
 
     // Funkce, která odemkne audio a spustí poslech
     async function inicializovatAsistenta() {
