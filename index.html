@@ -6,35 +6,55 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.json">
-  <script src="https://twilio.com"></script>
+  <script src="https://sdk.twilio.com/js/voice/releases/2.1.1/twilio.min.js"></script>
 
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; 
+      height: 100vh; margin: 0; padding: 20px; box-sizing: border-box;
       background: radial-gradient(circle at center, #2e1035 0%, #050206 100%); color: #fff; text-align: center; overflow: hidden;
     }
-    .go-logo { font-family: "Comic Sans MS", sans-serif; font-size: 25vw; font-weight: bold; color: #39ff14; text-shadow: 0 0 15px rgba(57, 255, 20, 0.6); user-select: none; }
+    .container {
+      display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+      height: 70vh; width: 100%; max-width: 400px;
+    }
+    .go-logo { 
+      font-family: "Comic Sans MS", sans-serif; font-size: clamp(4rem, 20vw, 8rem); font-weight: bold; 
+      color: #39ff14; text-shadow: 0 0 15px rgba(57, 255, 20, 0.6); user-select: none; 
+    }
     .talking { animation: neonPulse 1s infinite ease-in-out; color: #00ffff; text-shadow: 0 0 15px rgba(0, 255, 255, 0.6); }
     @keyframes neonPulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+    .sub-text { 
+      font-size: clamp(0.9rem, 4vw, 1.2rem); color: #888; margin-top: 20px;
+      word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; line-height: 1.4;
+    }
+    .error-mode { color: #ff3333 !important; text-shadow: 0 0 10px rgba(255, 51, 51, 0.4) !important; font-size: clamp(0.8rem, 3.5vw, 1.1rem) !important; }
   </style>
 </head>
 <body>
 
-  <div id="go-text" class="go-logo">GO!</div>
+  <div class="container">
+    <div id="go-text" class="go-logo">GO!</div>
+    <div id="sub-text" class="sub-text">Propojuji mezinárodní linku...</div>
+  </div>
 
   <script>
+    // Recyklace stávající karty v prohlížeči, aby se neotevírala nová okna
+    window.name = "go_live_frame";
+
     let device;
     const RENDER_TOKEN_URL = "https://" + "go-ai-brain." + "onrender." + "com/" + "api/" + "twilio-token";
 
     async function startLiveCall() {
       const logo = document.getElementById('go-text');
+      const sub = document.getElementById('sub-text');
+      
       logo.innerText = "VOLÁM...";
       logo.classList.add('talking');
 
       try {
-        // 1. Vyžádáme si od Renderu anonymní přístupový token pro mezinárodní internetový hovor
+        // 1. Požadavek na hovorový token z našeho serveru na Renderu
         const res = await fetch(RENDER_TOKEN_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -42,31 +62,35 @@
         });
         const data = await res.json();
 
-        // 2. Inicializujeme internetový hovor přes Twilio Voice SDK
-        device = new Twilio.Device(data.token, { edge: 'frankfurt', closeProtection: true });
+        // 2. Moderní inicializace Twilio Voice SDK verze 2.x podle dokumentace
+        device = new Twilio.Device(data.token, { edge: 'frankfurt' });
         
         device.on('ready', () => {
-          // Okamžitě otevíráme živou linku do cloudu bez mačkání tlačítek
           device.connect();
         });
 
-        device.on('connect', (connection) => {
+        device.on('connect', () => {
           logo.innerText = "GO!";
+          sub.innerText = "Asistentka naslouchá. Můžeš mluvit.";
         });
 
         device.on('disconnect', () => {
           logo.innerText = "KONEC";
           logo.classList.remove('talking');
-          // Po zavěšení se okno automaticky zavře a uživatel je zpět na ploše iPhonu
-          setTimeout(() => { window.close(); }, 1000);
+          sub.innerText = "Hovor byl ukončen.";
+          setTimeout(() => { window.close(); }, 1200);
         });
 
       } catch (err) {
-        logo.innerText = "CHYBA SPOJENÍ";
+        logo.innerText = "CHYBA";
+        logo.classList.remove('talking');
+        sub.classList.add('error-mode');
+        sub.innerText = "CHYBA: " + err.message;
+        console.error(err);
       }
     }
 
-    // BEZDOTYKOVÝ START: Jakmile Zkratka vystřelí PWA na celou obrazovku, ihned se otevírá audio tunel
+    // Automatický start hned po načtení PWA/Zkratky
     window.onload = () => {
       setTimeout(startLiveCall, 500);
     };
